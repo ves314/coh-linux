@@ -1,0 +1,55 @@
+# City of Heroes (Ouroboros v2i2.1.0) servers on this PC.
+# start.bat, stop.bat and reset.bat manage this file; you don't need to run it yourself.
+# Only the game's ports are opened, and only to this PC (127.0.0.1).
+name: coh-local
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: coh
+      POSTGRES_PASSWORD: ${COH_PG_PASSWORD:?run start.bat}
+    command: ["postgres", "-c", "max_connections=300"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-U", "coh", "-d", "postgres", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+    # SIGTERM is PostgreSQL's "smart" shutdown: it waits for the game servers to finish
+    # saving and disconnect, even when Docker Desktop stops everything at once.
+    stop_signal: SIGTERM
+    stop_grace_period: 330s
+    restart: on-failure:3
+
+  game:
+    image: coh-server:${COH_VERSION:?run start.bat}
+    platform: linux/386
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      COH_PG_HOST: postgres
+      COH_PG_PASSWORD: ${COH_PG_PASSWORD}
+      COH_ADVERTISED_IP: 127.0.0.1
+      COH_MAP_PORT_MAX: "7060"
+      COH_IDLE_EXIT_MINUTES: "5"
+    ports:
+      - "127.0.0.1:2106:2106/tcp"
+      - "127.0.0.1:7000-7060:7000-7060/udp"
+    volumes:
+      - gamedata:/gamedata:ro
+      - missionserver:/runcoh/missionserver
+      - logs:/runcoh/logs
+    stop_grace_period: 330s
+    restart: on-failure:3
+
+volumes:
+  pgdata:
+  missionserver:
+  logs:
+  gamedata:
+    external: true
+    name: coh-local-gamedata

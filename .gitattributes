@@ -1,0 +1,5 @@
+# Windows scripts keep the CRLF line endings they are committed with.
+*.bat -text
+*.ps1 -text
+# The server image.
+*.xz binary
